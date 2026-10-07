@@ -27,6 +27,88 @@ sales_by_month = df.filter(items=['Sales']).groupby(pd.Grouper(freq='ME')).sum()
 st.dataframe(sales_by_month)
 
 # Here the grouped months are the index and automatically used for the x axis
+st.header("Interactive Sales Explorer")
+
+# 1. Choose one category.
+selected_category = st.selectbox(
+    "Select a Category",
+    sorted(df["Category"].dropna().unique())
+)
+
+category_data = df[df["Category"] == selected_category]
+
+# 2. Choose subcategories within that category.
+subcategory_options = sorted(
+    category_data["Sub_Category"].dropna().unique()
+)
+
+selected_subcategories = st.multiselect(
+    "Select Subcategories",
+    options=subcategory_options,
+    default=subcategory_options,
+    key=f"subcategories_{selected_category}"
+)
+
+filtered_data = category_data[
+    category_data["Sub_Category"].isin(selected_subcategories)
+]
+
+if filtered_data.empty:
+    st.info("Select at least one subcategory to see results.")
+else:
+    # 3. Show monthly sales for the selected items.
+    monthly_sales = (
+        filtered_data[["Sales"]]
+        .groupby(pd.Grouper(freq="ME"))
+        .sum()
+        .sort_index()
+    )
+
+    st.subheader("Monthly Sales for Selected Items")
+    st.line_chart(monthly_sales)
+
+    # 4. Calculate the selected items' metrics.
+    total_sales = filtered_data["Sales"].sum()
+    total_profit = filtered_data["Profit"].sum()
+
+    profit_margin = (
+        total_profit / total_sales * 100
+        if total_sales != 0 else None
+    )
+
+    # 5. Compare with the overall margin across all products.
+    overall_sales = df["Sales"].sum()
+    overall_profit = df["Profit"].sum()
+
+    overall_margin = (
+        overall_profit / overall_sales * 100
+        if overall_sales != 0 else None
+    )
+
+    margin_difference = (
+        profit_margin - overall_margin
+        if profit_margin is not None and overall_margin is not None
+        else None
+    )
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Total Sales", f"${total_sales:,.2f}")
+    col2.metric("Total Profit", f"${total_profit:,.2f}")
+    col3.metric(
+        "Profit Margin",
+        f"{profit_margin:.2f}%" if profit_margin is not None else "N/A",
+        delta=(
+            f"{margin_difference:+.2f} percentage points"
+            if margin_difference is not None else None
+        )
+    )
+
+    if overall_margin is not None:
+        st.caption(
+            f"All-products profit margin: {overall_margin:.2f}%. "
+            "The delta shows the selected margin minus this benchmark."
+        )
 st.line_chart(sales_by_month, y="Sales")
 
 st.write("## Your additions")
